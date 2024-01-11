@@ -10,11 +10,20 @@ we present a flexible multi-modal contrastive learning for the integration of sp
 
 # Installation
 
-Just type 'pip install mnmstpy' in your terminal.
+please use 'git clone https://github.com/xkmaxidian/MuCST.git'.
 
 ## Tutorial
 
+The jupyter Notebook of the tutorial for 10 × DLPFC is accessible from :
+https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainDLPFC.ipynb
 
+The jupyter notebook of the tutorial for 10 $\times$ Human intestine section A1 is accessible from:
+
+https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainIntestine.ipynb
+
+##### MuCST also applicable to imaging-based ST Platform:
+
+https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainSTARmap.ipynb
 
 ## System Requirements
 
