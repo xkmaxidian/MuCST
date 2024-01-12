@@ -37,13 +37,15 @@ For more details of the used package., please refer to 'requirements.txt' file.
 
 ## File Descriptions:
 
-image_feature.py: Extract morphological information from histology image.
+image_feature.py - Extract morphological information from histology image.
 
-model.py: Base code for construct MuCST model.
+model.py - Base code for construct MuCST model.
 
-loss.py: Loss function of MuCST.
+loss.py - Loss function of MuCST.
 
 utils.py - Auxiliary functions for the MuCST model.
+
+multi_modal_simulation.py - code for simulated multi-modal data generation 
 
 ## Compared spatial domain identification algorithms
 
