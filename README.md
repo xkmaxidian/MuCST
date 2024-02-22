@@ -1,6 +1,7 @@
 # MuCST v1.0
 
-## Integrative analysis of spatially resolved transcriptomics data with multi-modal contrastive learning
+## MuCST: restoring and integrating heterogeneous morphology images and spatial transcriptomics data with contrastive learning
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10627683.svg)](https://doi.org/10.5281/zenodo.10627683)
 ###  Yu Wang, Xiaoke Ma
 
