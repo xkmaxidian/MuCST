@@ -26,6 +26,8 @@ https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainIntestine
 
 https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainSTARmap.ipynb
 
+##### Note: Full STARmap data are uploaded at our [Zendo](https://zenodo.org/records/10627683).
+
 ## System Requirements
 
 #### Python support packages  (Python 3.9.18): 
