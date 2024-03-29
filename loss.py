@@ -25,6 +25,11 @@ class Objective(nn.Module):
 
     # 高级特征对比学习部分的损失计算
     def forward(self, h_i, h_j):
+        """
+        The loss of contrastive learning
+        :param h_i:
+        :param h_j:
+        """
         n = 2 * self.batch_size
         h = torch.cat((h_i, h_j), dim=0)
 

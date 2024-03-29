@@ -3,11 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.nn.parameter import Parameter
-from torch.nn.modules.module import Module
-from torchvision.models import densenet121, resnet50
 
 
 class Discriminator(nn.Module):
+    """
+    Define the discriminator to distinguish postive sample from negative sample
+    """
     def __init__(self, n_h):
         super().__init__()
         self.f_k = nn.Bilinear(n_h, n_h, 1)
@@ -16,6 +17,9 @@ class Discriminator(nn.Module):
             self.weights_init(m)
 
     def weights_init(self, m):
+        """
+        Initialize the parameters of the discriminator model
+        """
         if isinstance(m, nn.Bilinear):
             torch.nn.init.xavier_uniform_(m.weight.data)
             if m.bias is not None:
@@ -36,10 +40,19 @@ class Discriminator(nn.Module):
 
 
 class AvgReadout(nn.Module):
+    """
+    We define the readout function here, where the local-avg representation is used to replace the global
+    representation in Deep Graph Infomax
+    """
     def __init__(self):
         super().__init__()
 
     def forward(self, emb, mask=None):
+        """
+        Calculate the avg representation of one micro-environment
+        :param emb: the representation of spot
+        :param mask: the weighted cell network
+        """
         v_sum = torch.mm(mask, emb)
         row_sum = torch.sum(mask, 1)
         row_sum = row_sum.expand((v_sum.shape[1], row_sum.shape[0])).T
@@ -65,20 +78,12 @@ class AutoEncoder(nn.Module):
 
     def forward(self, feat, feat_fake, adj):
         z = self.encoder.forward(feat, adj)
-        # hidden_emb 就是低维嵌入表征
         hidden_emb = z
 
-        # 这部分，使用GCN层对低维嵌入表征进行解码操作，完成自编码器。
-        # h = torch.mm(z, self.weight2)
-        # h = torch.mm(adj, h)
         h = self.decoder(z, adj)
         rec_feature = self.act(h)
 
-        # z_fake = F.dropout(feat_fake, self.dropout, self.training)
-        # z_fake = torch.mm(z_fake, self.weight1)
-        # z_fake = torch.mm(adj, z_fake)
         emb_fake = self.encoder.forward(feat_fake, adj)
-        # emb_fake = self.act(z_fake)
 
         g = self.read(hidden_emb, self.graph_neigh)
         g = self.sigma(g)
@@ -97,7 +102,6 @@ class Encoder(nn.Module):
         self.in_features = in_dims
         self.hidden_features = hidden_dims
 
-        # 对应编码器与解码器的参数。我们这里需要尝试，使用图编码器进行编码，再使用简答你的全连接层进行解码
         self.weight1 = Parameter(torch.FloatTensor(self.in_features, self.hidden_features))
         torch.nn.init.xavier_uniform_(self.weight1)
 
@@ -116,13 +120,10 @@ class Decoder(nn.Module):
 
         self.weight = Parameter(torch.FloatTensor(self.hidden_features, self.in_features))
         torch.nn.init.xavier_uniform_(self.weight)
-        # self.decoder = nn.Linear(in_features=self.hidden_features, out_features=self.in_features)
 
     def forward(self, x, adj):
         h = torch.mm(x, self.weight)
         h = torch.mm(adj, h)
-        # h = self.decoder(x)
-        # return F.relu(h)
         return h
 
 
@@ -166,7 +167,6 @@ class ImageAutoEncoder(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        # 对应编码器与解码器的参数。我们这里需要尝试，使用图编码器进行编码，再使用简单的全连接层进行解码
         self.encoder = ImageEncoder(in_dims=in_features, hidden_dims=out_features)
         self.decoder = ImageDecoder(hidden_dims=out_features, in_dims=in_features)
 
@@ -217,7 +217,6 @@ class OurModel(nn.Module):
 
     def forward_gene(self, gene, graph):
         zg = self.gene_encoder_layer1.forward(x=gene, adj=graph)
-        # z_high_gene = self.gene_encoder_layer2.forward(input=z_low_gene)
         hg = self.projector(zg)
         return zg, hg
 
@@ -230,7 +229,7 @@ class OurModel(nn.Module):
         return self.mse_loss(zi, xi)
 
     def forward(self, gene, fake_gene, img, aug_img1, aug_img2, graph, fusion=False, alpha=1):
-        # gene编码部分
+        # encode the gene expression into latent embeddings
         zg, hg = self.forward_gene(gene, graph)
         zg_fake, hg_fake = self.forward_gene(fake_gene, graph)
 
@@ -241,17 +240,14 @@ class OurModel(nn.Module):
         g_fake = self.read(emb_fake, self.graph)
         g_fake = self.sigma(g_fake)
 
-        # dis_a: 正样本与局部邻域summary vector的判别性分数
         dis_a = self.disc(g, emb_true, emb_fake)
 
-        # dis_b: 负样本与负样本局部邻域summary vector的判别性分数
         dis_b = self.disc(g_fake, emb_fake, emb_true)
 
         zi, hi = self.forward_image(img)
         aug_zi1, aug_hi1 = self.forward_image(aug_img1)
         aug_zi2, aug_hi2 = self.forward_image(aug_img2)
 
-        # 重构基因表达: rec_gene
         if fusion:
             z_f = alpha * zg + (1 - alpha) * zi
             rec_gene = self.decoder(z_f, graph)
@@ -312,7 +308,7 @@ class OurSimulationModel(nn.Module):
         return self.mse_loss(zi, xi)
 
     def forward(self, gene, fake_gene, img, graph, fusion=False, alpha=1):
-        # gene编码部分
+        # encode the gene expression into latent embeddings
         zg, hg = self.forward_gene(gene, graph)
         zg_fake, hg_fake = self.forward_gene(fake_gene, graph)
 
@@ -323,14 +319,12 @@ class OurSimulationModel(nn.Module):
         g_fake = self.read(emb_fake, self.graph)
         g_fake = self.sigma(g_fake)
 
-        # dis_a: 正样本与局部邻域summary vector的判别性分数
         dis_a = self.disc(g, emb_true, emb_fake)
 
-        # dis_b: 负样本与负样本局部邻域summary vector的判别性分数
         dis_b = self.disc(g_fake, emb_fake, emb_true)
         zi, hi = self.forward_image(img)
 
-        # 重构基因表达: rec_gene
+        # reconstruct the gene expression data
         if fusion:
             z_f = alpha * zg + (1 - alpha) * zi
             rec_gene = self.decoder(z_f, graph)

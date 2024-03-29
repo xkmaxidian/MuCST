@@ -24,6 +24,16 @@ from scipy.optimize import linear_sum_assignment
 
 def read_10x_visium(path, count_file='filtered_feature_bc_matrix.h5', library_id=None, load_images=True,
                     quality='hires', image_path=None):
+    """
+    Method to load 10X Visium dataset
+    :param path: the data path
+    :param count_file: the name of count file
+    :param library_id: the section id of current slice
+    :param load_images: whether load the histology image of slice
+    :param quality: select which quality of the histology to load
+    :param image_path: set the data path of the image
+    :return: the loaded AnnData object
+    """
     adata = sc.read_visium(path, count_file=count_file, library_id=library_id, load_images=load_images)
     adata.var_names_make_unique()
     if library_id is None:
@@ -43,11 +53,12 @@ def read_10x_visium(path, count_file='filtered_feature_bc_matrix.h5', library_id
 
 
 def refine_label(adata, radius=50, key='label'):
+    r"""
+    Refine the cluster label according to its neighbors
+    """
     n_neigh = radius
     new_type = []
     old_type = adata.obs[key].values
-
-    # calculate distance
     position = adata.obsm['spatial']
     distance = ot.dist(position, position, metric='euclidean')
 
@@ -66,12 +77,14 @@ def refine_label(adata, radius=50, key='label'):
     return new_type
 
 
-''' 
-使用KNN，基于空间位置构图，以进行后续操作，如使用基因表征，或图像表征间的相似性进行边加权
-'''
-
-
 def cal_spatial_weight(spatial_data, spatial_k, spatial_type='BallTree'):
+    r"""
+    Construct the cell network
+    :param spatial_data: the coordinates of cells, sucha as adata.obsm['spatial']
+    :param spatial_k: the number of neighbors of cell
+    :param spatial_type: select which way to construct the cell network
+    :return: the constructed cell network
+    """
     if spatial_type == 'NearestNeighbors':
         nbrs = NearestNeighbors(n_neighbors=spatial_k + 1, algorithm='ball_tree').fit(spatial_data)
         _, indices = nbrs.n_neighbors(spatial_data)
@@ -91,6 +104,13 @@ def cal_spatial_weight(spatial_data, spatial_k, spatial_type='BallTree'):
 
 
 def cal_gene_weight(data, n_components=50, gene_dist_type='cosine'):
+    r"""
+    Calculate the similarity of gene expression between spots
+    :param data: the count matrix of gene expression
+    :param n_components: reduce the dimension of expression
+    :param gene_dist_type: select the similarity type
+    :return: the calculated similarity matrix
+    """
     if isinstance(data, csr_matrix):
         data = data.toarray()
     if data.shape[1] > 500:
@@ -101,6 +121,9 @@ def cal_gene_weight(data, n_components=50, gene_dist_type='cosine'):
 
 
 def find_adjacent_spot(adata, use_data='raw', neighbor_k=6):
+    r"""
+    for cell i, find its neighbors
+    """
     if use_data == 'raw':
         if isinstance(adata.X, csr_matrix):
             gene_matrix = adata.X.toarray()
@@ -118,27 +141,19 @@ def find_adjacent_spot(adata, use_data='raw', neighbor_k=6):
     with tqdm(total=len(adata), desc='Find adjacent spots of each spot',
               bar_format='{l_bar}{bar} [Time left: {remaining}]', ) as pbar:
         for i in range(adata.shape[0]):
-            # 将权重矩阵从小到大进行排序(argsort())，取最后的k个([-nei_k : ])，并去除掉节点自身([: -1])
-            # current_spot代表的是最近的k个spot的索引
             current_spot = adata.obsm['weight_phy_mor'][i].argsort()[-neighbor_k:][: -1]
-            # 根据索引，取得权重矩阵中的相似度值
             spot_weight = adata.obsm['weight_phy_mor'][i][current_spot]
-            # 根据索引，取得邻居spot中的基因表达值
             spot_matrix = gene_matrix[current_spot]
             if spot_weight.sum() > 0:
-                # 对邻居spot的权重进行归一化，并存储进list中
                 spot_weight_scaled = (spot_weight / spot_weight.sum())
                 weights_list.append(spot_weight_scaled)
-                # 根据归一化后的spot权重，计算邻居spot的加权和
                 spot_matrix_scaled = np.multiply(spot_weight_scaled.reshape(-1, 1), spot_matrix)
                 spot_matrix_final = np.sum(spot_matrix_scaled, axis=0)
             else:
                 spot_matrix_final = np.zeros(gene_matrix.shape[1])
                 weights_list.append(np.zeros(len(current_spot)))
             final_coordinates.append(spot_matrix_final)
-            # 更新进度条
             pbar.update(1)
-    # shape of adata.obsm['adjacent_data'] \in R^{n_obs * n_genes}
     adata.obsm['adjacent_data'] = np.array(final_coordinates)
     adata.obsm['adjacent_weight'] = np.array(weights_list)
     return adata
@@ -146,6 +161,20 @@ def find_adjacent_spot(adata, use_data='raw', neighbor_k=6):
 
 def data_augmentation(adata, adjacent_weight=0.3, neighbour_k=4, spatial_k=30, n_components=50, md_dist_type='cosine',
                       gb_dist_type='correlation', use_morphological=True, use_data='raw', spatial_type='KDTree'):
+    r"""
+    Perform data augmentation
+    :param adata: input AnnData object
+    :param adjacent_weight: the effect of neighbors to current spot, default is 0.3 according to DeepST
+    :param neighbour_k: the number of neighbors of spot i in both spatial proximity and morphological similarity
+    :param spatial_k: the number of neighbors of spot i in spatial proximity
+    :param n_components: the dimension of gene expression to calculate expression similarity
+    :param md_dist_type: the metric of similarity
+    :param gb_dist_type: the distance metric of gene expression between spots
+    :param use_morphological: whether the morphological information is used
+    :param use_data: set which feature is employed to find adjacent spots
+    :param spatial_type: the method to construct the KNN graph
+    :return: the AnnData object, where the augmented data are stored in 'adata.obsm['augment_gene_data']'
+    """
     if use_morphological:
         if spatial_type == 'LinearRegress':
             image_row = adata.obs['image_row']
@@ -155,10 +184,9 @@ def data_augmentation(adata, adjacent_weight=0.3, neighbour_k=4, spatial_k=30, n
             rate = 3
             reg_row = LinearRegression().fit(array_row.values.reshape(-1, 1), image_row)
             reg_col = LinearRegression().fit(array_col.values.reshape(-1, 1), image_col)
-            # 计算每个spot之间的图像坐标之间的距离矩阵
+            # calculate the euc distance between spots
             physical_distance = pairwise_distances(adata.obs[['image_col', 'image_row']], metric='euclidean')
             unit = np.sqrt(reg_row.coef_ ** 2 + reg_col.coef_ ** 2)
-            # 如果distance >= rate, 则将distance替换为0，否则，替换为1 (距离阈值法)
             physical_distance = np.where(physical_distance >= rate * unit, 0, 1)
         else:
             physical_distance = cal_spatial_weight(adata.obsm['spatial'], spatial_k=spatial_k,
@@ -204,6 +232,16 @@ def data_augmentation(adata, adjacent_weight=0.3, neighbour_k=4, spatial_k=30, n
 
 
 def search_res(adata, n_clusters, method='leiden', use_rep='emb', start=0.1, end=3.0, increment=0.01):
+    r"""
+    Automatically search for a resolution that matches the target number of clusters
+    :param adata: the input AnnData object
+    :param n_clusters: the target cluster number
+    :param method: which graph cluster method is employed, it should be 'leiden' or 'louvain'
+    :param start: the resolution where to start search
+    :param end: the resolution where to end
+    :param increment: the increment value when the resolution is not right
+    :return: the best resolution correspond to the target cluster number
+    """
     print('Searching resolution...')
     label = 0
     sc.pp.neighbors(adata, n_neighbors=20, use_rep=use_rep)
@@ -216,6 +254,9 @@ def search_res(adata, n_clusters, method='leiden', use_rep='emb', start=0.1, end
             sc.tl.louvain(adata, resolution=res, random_state=42)
             count_unique = len(pd.DataFrame(adata.obs['louvain']).louvain.unique())
             print('resolution={}, cluster number={}'.format(res, count_unique))
+        else:
+            raise TypeError(f"Expected `method` to be either `leiden` or `louvain`, found `{str(method)}`.")
+
         if count_unique == n_clusters:
             label = 1
             break
@@ -224,6 +265,11 @@ def search_res(adata, n_clusters, method='leiden', use_rep='emb', start=0.1, end
 
 
 def permutation(feature):
+    r"""
+    The method to random permute the feature matrix
+    :param feature: the raw feature matrix
+    :return: the generated feature matrix of the attribute graph
+    """
     ids = np.arange(feature.shape[0])
     ids = np.random.permutation(ids)
     feature_permutate = feature[ids]
@@ -231,6 +277,9 @@ def permutation(feature):
 
 
 def get_feature(adata):
+    r"""
+    Store the feature in the 'adata.obsm'
+    """
     target_feature = adata.obsm['augment_gene_data']
     if isinstance(target_feature, sp.csc_matrix) or isinstance(target_feature, sp.csr_matrix):
         feature = target_feature.toarray()
@@ -242,6 +291,11 @@ def get_feature(adata):
 
 
 def construction_interaction(adata, n_neighbor=3):
+    r"""
+    Construct the cell spatial network
+    :param adata: the input AnnData object
+    :param n_neighbor: the number of neighbors
+    """
     position = adata.obsm['spatial']
     distance_matrix = pairwise_distances(position)
     n_spot = adata.shape[0]
@@ -261,6 +315,9 @@ def construction_interaction(adata, n_neighbor=3):
 
 
 def add_contrastive_label(adata):
+    r"""
+    Generate labels for positive samples and negative samples, which is employed to train discriminator
+    """
     n_spot = adata.n_obs
     one_matrix = np.ones([n_spot, 1])
     zero_matrix = np.zeros([n_spot, 1])
@@ -269,6 +326,9 @@ def add_contrastive_label(adata):
 
 
 def normalize_adj(adj):
+    r"""
+    Normalize the adjacency graph
+    """
     adj = sp.coo_matrix(adj)
     row_sum = np.array(adj.sum(1))
     d_inv_sqrt = np.power(row_sum, -0.5).flatten()
@@ -279,11 +339,17 @@ def normalize_adj(adj):
 
 
 def preprocess_adj(adj):
+    r"""
+    Self loop
+    """
     adj_normalized = normalize_adj(adj) + np.eye(adj.shape[0])
     return adj_normalized
 
 
 def fix_seed(seed):
+    r"""
+    Set seed value, ensure reproduce
+    """
     os.environ['PYTHONHASHSEED'] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -298,6 +364,13 @@ def fix_seed(seed):
 
 
 def mclust_R(adata, num_cluster, modelNames='EEE', used_obsm='rec_feat_pca', random_seed=2023):
+    r"""
+    The cluster method, for Visium dataset, Mclust always perform better than graph-based cluster methods
+    :param adata: the input AnnData object
+    :param num_cluster: the target cluster number
+    :param used_obsm: the latent which is used to input the cluster method
+    :param random_seed: seed value
+    """
     np.random.seed(random_seed)
     import rpy2.robjects as robjects
     robjects.r.library("mclust")
@@ -317,6 +390,17 @@ def mclust_R(adata, num_cluster, modelNames='EEE', used_obsm='rec_feat_pca', ran
 
 
 def clustering(adata, n_clusters=7, radius=50, method='mclust', start=0.1, end=3.0, increment=0.01, refinement=False):
+    r"""
+    The cluster method
+    :param adata: the input AnnData object
+    :param n_clusters: the target cluster number
+    :param radius: the neighbor radius to refine the cluster label
+    :param method: the cluster method, should be 'mclust', 'leiden', or 'louvain'
+    :param start: the start resolution
+    :param end: the end resolution
+    :param increment: the increment value for search resolution
+    :param refinement: whether to refine the cluster labels
+    """
     pca = PCA(n_components=20, random_state=42)
     embedding = pca.fit_transform(adata.obsm['rec_feature'].copy())
     adata.obsm['rec_feat_pca'] = embedding
@@ -405,6 +489,14 @@ def plot_graph_weights(locations,
 
 
 def calculate_overlap(input_data, input_gene_name, used_obs, input_domain_number):
+    r"""
+    Method to calculate the overlap ratio between marker genes and the identified spatial domain
+    :param input_data: the input AnnData object
+    :param input_gene_name: the name of makrer gene
+    :param used_obs: where the cluster label are stored, such as adata.obs['predict']
+    :param input_domain_number: the target domain number, should be inclued in the 'adata.obs[used_obs]'
+    :return: the overlap ratio between marker gene and the identified spatial domain
+    """
     filtered_adata = input_data[input_data.obs[used_obs] == input_domain_number]
     count_matrix = filtered_adata.X.A
     count_matrix = pd.DataFrame(count_matrix)
@@ -423,13 +515,10 @@ def calculate_overlap(input_data, input_gene_name, used_obs, input_domain_number
     return overlap_ratio
 
 
-def Hungarian(A):
-    _, col_ind = linear_sum_assignment(A)
-    # Cost can be found as A[row_ind, col_ind].sum()
-    return col_ind
-
-
 def BestMap(L1, L2):
+    r"""
+    Find the best map for predicted cluster labels to ground truth
+    """
     L1 = L1.flatten(order='F').astype(float)
     L2 = L2.flatten(order='F').astype(float)
     if L1.size != L2.size:
@@ -446,7 +535,7 @@ def BestMap(L1, L2):
         for j in range(0, nClass1):
             G[i, j] = np.sum(np.logical_and(L2 == Label2[i], L1 == Label1[j]))
 
-    c = Hungarian(-G)
+    _, c = linear_sum_assignment(-G)
     newL2 = np.zeros(L2.shape)
     for i in range(0, nClass2):
         newL2[L2 == Label2[i]] = Label1[c[i]]

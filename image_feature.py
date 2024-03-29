@@ -1,5 +1,3 @@
-import random
-
 import numpy as np
 import pandas as pd
 import torch
@@ -26,36 +24,35 @@ class ImageFeature:
         self.cnn_type = 'ResNet50'  # or choose ResNet50
 
     def load_cnn_model(self):
-        # cnn_pretrained_model = models.inception_v3(pretrained=True)
-        # cnn_pretrained_model.fc = nn.Linear(2048, 2048, bias=False)
-        # torch.nn.init.eye_(cnn_pretrained_model.fc.weight)
-        # cnn_pretrained_model.to(self.device)
+        """
+        load image feature extractor model, we are considering add more pre-trained model
+        """
         cnn_pretrained_model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
-        # modules = list(cnn_pretrained_model.children())[: -1]
-        # cnn_pretrained_model = nn.Sequential(*modules)
         cnn_pretrained_model.fc = nn.Identity()
         cnn_pretrained_model = cnn_pretrained_model.to(device=self.device)
         return cnn_pretrained_model
 
     def extract_image_features(self):
+        """
+        Extract the morphological information from image patches
+        :return: the AnnData object, where the morphological features are stored in 'adata.obsm['image_feature']'
+        """
         transform_list = [transforms.ToTensor(),
                           transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                               std=[0.229, 0.224, 0.225]),
-                          ]
+                                               std=[0.229, 0.224, 0.225])]
         aug_transform_list = [
-            # 随机从图像中剪切一块区域，用黑色填充，以增加模型对遮挡和噪声的鲁棒性
             Cutout(0.5),
-            # 将图像转换为张量格式，方便后续神经网络的输入
+            # Convert image from ndarray to tensor
             transforms.ToTensor(),
-            # # 随机水平翻转图像，增加数据的多样性
+            # Randomly flip images horizontally
             transforms.RandomHorizontalFlip(p=0.5),
-            # # 随机垂直翻转图像，增加数据的多样性
+            # Randomly flip images vertically
             transforms.RandomVerticalFlip(p=0.5),
-            # # 随机应用一种颜色扭曲变换，如随机改变亮度、对比度、饱和度等，增加数据的多样性, p=0.8表示有80%的概率进行颜色抖动变换
+            # Randomly applies a color warp transform
             transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
-            # # 随机将图像转换为灰度图像，增加数据的多样性
+            # Randomly convert images to grayscale to increase data diversity
             transforms.RandomGrayscale(p=0.2),
-            # # 标准化图像像素值，以便网络更容易学习到图像之间的差异；该函数对输入数据进行归一化处理，有助于提高训练的效率和精度
+            # Normalized the values of image pixel
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
 
@@ -119,7 +116,17 @@ class ImageFeature:
         return self.adata
 
 
-def image_crop(adata, save_path, library_id=None, crop_size=112, target_size=224, verbose=False, full_image_path=None):
+def image_crop(adata, save_path, library_id=None, crop_size=112, target_size=224, verbose=False):
+    """
+    Segment histology image into multiple image patches
+    :param adata: input AnnData object
+    :param save_path: the path where the image patches will be saved
+    :param library_id: section id, typically stored in adata.uns['spatial']
+    :param crop_size: the crop size of image patch
+    :param target_size: the target image size, for ResNet-50, the value is 224 by default
+    :param verbose: control whether show the image crop process
+    :return: the AnnData object, where the paths of image patches are stored in 'adata.obs['slice_path']'
+    """
     if library_id is None:
         library_id = list(adata.uns['spatial'].keys())[0]
     # load hires quality image
