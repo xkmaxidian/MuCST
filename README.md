@@ -1,4 +1,4 @@
-# MuCST v1.0
+# MuCST v1.0.6
 
 ## MuCST: restoring and integrating heterogeneous morphology images and spatial transcriptomics data with contrastive learning
 
@@ -11,7 +11,36 @@ we present a flexible multi-modal contrastive learning for the integration of sp
 
 # Installation
 
-please use 'git clone https://github.com/xkmaxidian/MuCST.git'.
+#### <font color='red'>To accelerate MuCST by using GPU: If you have an NVIDIA GPU, be sure to firstly install a version of PyTorch that supports it (We recommend Pytorch >= 2.0.1). When installing MuCST without install Pytorch previous, the CPU version of torch will be installed by default for you. Here is the [installation guide of PyTorch](https://pytorch.org/get-started/locally/).</font>
+
+#### 1. Start by using python virtual environment with [conda](https://anaconda.org/):
+
+```
+conda create --name mucst python=3.9
+conda activate mucst
+# we recommend install gpu version of torch in previous, use pip will insatll torch-cpu version by default
+pip install git+https://github.com/bbchond/torch-toolbox.git@master  # we have fixed bugs in torchtoolbox about numpy
+pip install mucstpy
+```
+
+(Optional) To run the notebook files in tutorials, please ensure the Jupyter package is installed in your environment:
+
+```
+conda install -n mucst ipykernel
+python -m ipykernel install --user --name mucst --display-name mucst-jupyter
+```
+
+Note: 
+
+1. If you encounter the error message "ImportError: Please install the skmisc package via `pip install --user scikit-misc`" while executing `sc.pp.highly_variable_genes(adata, flavor='seurat_v3', n_top_genes=3000)`, please execute the following command in your terminal: `pip install -i https://test.pypi.org/simple/ scikit-misc==0.2.0rc1`.
+
+
+
+## Install R packages
+
+* install R for your device: https://cran.r-project.org/
+* Replace the statement `os.environ['R_HOME'] = 'C:/Program Files/R/R-4.3.1'` in Jupyter with your R path
+* install.packages("mclust")
 
 ## Tutorial
 
@@ -28,6 +57,8 @@ https://github.com/xkmaxidian/MuCST/blob/master/tutorials/SpatialDomainSTARmap.i
 
 ##### Note: Full STARmap data are uploaded at our [Zendo](https://zenodo.org/records/10627683).
 
+
+
 ## System Requirements
 
 #### Python support packages  (Python 3.9.18): 
@@ -37,6 +68,8 @@ scanpy, igraph, pandas, numpy, scipy, scanpy, anndata, sklearn, seaborn, torch, 
 For more details of the used package., please refer to 'requirements.txt' file.
 
 ##### The coding here is a generalization of the algorithm given in the paper. MuCST is written in Python programming language. To use, please clone this repository and follow the instructions provided in the README.md.
+
+
 
 ## File Descriptions:
 
@@ -63,6 +96,11 @@ Algorithms that are compared include:
 * [STAGATE](https://github.com/zhanglabtools/STAGATE)
 * [SpatialPCA](https://github.com/shangll123/SpatialPCA)
 * [DeepST](https://github.com/JiangBioLab/DeepST)
+* [ConGI](https://github.com/biomed-AI/ConGI)
+* [conST](https://github.com/ys-zong/conST)
+* [stMVC](https://github.com/cmzuo11/stMVC)
+* [stMGATF](https://github.com/liying-1028/stMGATF)
+* [Spatial-MGCN](https://github.com/cs-wangbo/Spatial-MGCN/tree/master)
 
 ### Contact:
 

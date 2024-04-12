@@ -159,7 +159,50 @@ def find_adjacent_spot(adata, use_data='raw', neighbor_k=6):
     return adata
 
 
-def data_augmentation(adata, adjacent_weight=0.3, neighbour_k=4, spatial_k=30, n_components=50, md_dist_type='cosine',
+def data_augmentation(adata, k=6, aug_para=0.3):
+    if isinstance(adata.X, csr_matrix):
+        gene_matrix = adata.X.A
+    elif isinstance(adata.X, np.ndarray):
+        gene_matrix = adata.X
+    elif isinstance(adata.X, pd.DataFrame):
+        gene_matrix = adata.X.values
+    else:
+        raise ValueError(f"{type(adata.X)} is not a valid type here")
+
+    weights_list = []
+    final_coordinates = []
+
+    adj_spatial_mor = adata.obsm['mor_adj']
+    for i in range(adata.shape[0]):
+        current_spot = adj_spatial_mor[i].argsort()[-k:][: -1]
+        spot_weight = adj_spatial_mor[i][current_spot]
+        spot_feature_matrix = gene_matrix[current_spot]
+        if spot_weight.sum() != 0:
+            spot_weight_scaled = spot_weight / spot_weight.sum()
+            weights_list.append(spot_weight_scaled)
+            spot_matrix_scaled = np.multiply(spot_weight_scaled.reshape(-1, 1), spot_feature_matrix)
+            spot_matrix_final = np.sum(spot_matrix_scaled, axis=0)
+            final_coordinates.append(spot_matrix_final)
+        else:
+            print(i, current_spot)
+            final_coordinates.append(gene_matrix[i])
+
+    adjacent_spot_data = np.array(final_coordinates)
+
+    if isinstance(adata.X, np.ndarray):
+        augment_gene_matrix = adata.X + aug_para * adjacent_spot_data.astype(float)
+    elif isinstance(adata.X, csr_matrix):
+        augment_gene_matrix = adata.X.A + aug_para * adjacent_spot_data.astype(float)
+    else:
+        raise ValueError(f"{type(adata.X)} is not a valid type here")
+
+    if aug_para > 0:
+        adata.obsm['augment_gene_data'] = augment_gene_matrix
+    else:
+        adata.obsm['augment_gene_data'] = adata.X
+
+
+def data_augmentation_all(adata, adjacent_weight=0.3, neighbour_k=4, spatial_k=30, n_components=50, md_dist_type='cosine',
                       gb_dist_type='correlation', use_morphological=True, use_data='raw', spatial_type='KDTree'):
     r"""
     Perform data augmentation
