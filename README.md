@@ -2,7 +2,6 @@
 
 ## MuCST: restoring and integrating heterogeneous morphology images and spatial transcriptomics data with contrastive learning
 
-# [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10627683.svg)](https://doi.org/10.5281/zenodo.10627683)
 ###  Yu Wang, Xiaoke Ma
 
 we present a flexible multi-modal contrastive learning for the integration of spatially resolved transcriptomics (MuCST), including histology image, spatial coordinates and transcription profiles of cells, which jointly perform denoising, elimination of heterogeneity, and compatible feature learning. We demonstrate that MuCST robustly and accurately identifies tissue subpopulations from simulated data with various types of perturbations. In cancer-related tissues, MuCST precisely identifies tumor-associated domains, reveals gene biomarkers for tumor regions, and exposes intratumoral heterogeneity. MuCST is applicable to diverse datasets generated from various platforms, such as STARmap, Visium, and omsFISH for spatial transcriptomics, and hematoxylin and eosin or fluorescence microscopy for images. Overall, MuCST facilitates the integration of multi-modal spatially resolved data, but also serves as pre-processing for data restoration, providing deeper insights into the states, functions, and organization of cells within complex biological tissues.
