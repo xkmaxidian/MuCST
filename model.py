@@ -71,10 +71,8 @@ class AutoEncoder(nn.Module):
             z = self.encoder_bottleneck.forward(feat, adj)
         else:
             z = self.encoder.forward(feat, adj)
-        # hidden_emb 就是低维嵌入表征
         hidden_emb = z
 
-        # 这部分，使用GCN层对低维嵌入表征进行解码操作，完成自编码器。
         # h = torch.mm(z, self.weight2)
         # h = torch.mm(adj, h)
         if self.bottleneck:
@@ -109,7 +107,6 @@ class Encoder(nn.Module):
         self.in_features = in_dims
         self.hidden_features = hidden_dims
 
-        # 对应编码器与解码器的参数。我们这里需要尝试，使用图编码器进行编码，再使用简答你的全连接层进行解码
         self.weight1 = Parameter(torch.FloatTensor(self.in_features, self.hidden_features))
         torch.nn.init.xavier_uniform_(self.weight1)
 
