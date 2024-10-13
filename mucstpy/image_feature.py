@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 import torchvision.transforms as transforms
-import cv2
 from PIL import Image
 from torchtoolbox.transform import Cutout
 from tqdm import tqdm
