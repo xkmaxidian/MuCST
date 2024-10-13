@@ -48,7 +48,7 @@ class AvgReadout(nn.Module):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, in_features, out_features, graph_neigh, dropout=0.0, act=F.relu):
+    def __init__(self, in_features, out_features, graph_neigh, dropout=0.0, act=F.relu, bottleneck=False):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -58,26 +58,38 @@ class AutoEncoder(nn.Module):
 
         self.encoder = Encoder(in_dims=in_features, hidden_dims=out_features)
         self.decoder = Decoder(hidden_dims=out_features, in_dims=in_features)
+        self.encoder_bottleneck = Encoder_with_bottleneck(in_dims=in_features, hidden_dims=out_features, bottleneck_dims=32)
+        self.decoder_bottleneck = Decoder_with_bottleneck(hidden_dims=out_features, out_dims=in_features, bottleneck_dims=32)
 
         self.disc = Discriminator(self.out_features)
         self.sigma = nn.Sigmoid()
         self.read = AvgReadout()
+        self.bottleneck = bottleneck
 
     def forward(self, feat, feat_fake, adj):
-        z = self.encoder.forward(feat, adj)
+        if self.bottleneck:
+            z = self.encoder_bottleneck.forward(feat, adj)
+        else:
+            z = self.encoder.forward(feat, adj)
         # hidden_emb 就是低维嵌入表征
         hidden_emb = z
 
         # 这部分，使用GCN层对低维嵌入表征进行解码操作，完成自编码器。
         # h = torch.mm(z, self.weight2)
         # h = torch.mm(adj, h)
-        h = self.decoder(z, adj)
+        if self.bottleneck:
+            h = self.decoder_bottleneck(z, adj)
+        else:
+            h = self.decoder(z, adj)
         rec_feature = self.act(h)
 
         # z_fake = F.dropout(feat_fake, self.dropout, self.training)
         # z_fake = torch.mm(z_fake, self.weight1)
         # z_fake = torch.mm(adj, z_fake)
-        emb_fake = self.encoder.forward(feat_fake, adj)
+        if self.bottleneck:
+            emb_fake = self.encoder_bottleneck.forward(feat_fake, adj)
+        else:
+            emb_fake = self.encoder.forward(feat_fake, adj)
         # emb_fake = self.act(z_fake)
 
         g = self.read(hidden_emb, self.graph_neigh)
@@ -124,6 +136,65 @@ class Decoder(nn.Module):
         # h = self.decoder(x)
         # return F.relu(h)
         return h
+
+
+class Encoder_with_bottleneck(nn.Module):
+    def __init__(self, in_dims, hidden_dims, bottleneck_dims):
+        super().__init__()
+        self.in_features = in_dims
+        self.hidden_features = hidden_dims
+
+        self.weights = torch.nn.ParameterList()
+        self.layers = len(hidden_dims)
+        self.bottleneck = nn.Linear(hidden_dims[-1], bottleneck_dims)
+
+        current_dim = in_dims
+        for hidden_dim in hidden_dims:
+            weight = Parameter(torch.FloatTensor(current_dim, hidden_dim))
+            torch.nn.init.xavier_uniform_(weight)
+            self.weights.append(weight)
+            current_dim = hidden_dim
+
+    def forward(self, x, adj):
+        for i in range(self.layers):
+            x = torch.mm(x, self.weights[i])
+            x = torch.mm(adj, x)
+            # in hidden layers, we use ReLU activation
+            if i < self.layers - 1:
+                x = F.relu(x)
+            x = self.bottleneck(x)
+        return x
+
+
+class Decoder_with_bottleneck(nn.Module):
+    """
+    Decoder for transcript modality
+    """
+
+    def __init__(self, hidden_dims, out_dims, bottleneck_dims):
+        super().__init__()
+        self.hidden_features = hidden_dims
+        self.out_features = out_dims
+
+        self.weights = torch.nn.ParameterList()
+
+        current_dim = hidden_dims[0]
+        self.bottleneck = nn.Linear(bottleneck_dims, current_dim)
+        for hidden_dim in hidden_dims[1:] + [out_dims]:
+            weight = Parameter(torch.FloatTensor(current_dim, hidden_dim))
+            torch.nn.init.xavier_uniform_(weight)
+            self.weights.append(weight)
+            current_dim = hidden_dim
+
+    def forward(self, x, adj):
+        x = self.bottleneck(x)
+        x = F.relu(x)
+        for i, weight in enumerate(self.weights):
+            x = torch.mm(x, weight)
+            x = torch.mm(adj, x)
+            if i < len(self.weights) - 1:
+                x = F.relu(x)
+        return x
 
 
 class ImageEncoder(nn.Module):
