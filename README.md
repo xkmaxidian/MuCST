@@ -109,4 +109,14 @@ Algorithms that are compared include:
 
 ### Contact:
 
+We are continuing adding new features. Bug reports or feature requests are welcome.
+
+Last update: 2025-03-14, version 1.0.7
+
 Please send any questions or found bugs to Xiaoke Ma [xkma@xidian.edu.cn](mailto:xkma@xidian.edu.cn).
+
+### Reference:
+
+Please consider citing the following reference:
+
+- [https://genomemedicine.biomedcentral.com/articles/10.1186/s13073-025-01449-1](https://doi.org/10.1186/s13073-025-01449-1)
